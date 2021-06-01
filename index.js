@@ -105,4 +105,5 @@ module.exports = function init(sbot, config) {
 };
 
 module.exports.init = module.exports;
+module.exports.ServeBlobs = ServeBlobs;
 

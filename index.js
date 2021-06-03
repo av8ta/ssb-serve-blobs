@@ -10,25 +10,27 @@ var DEFAULT_PORT = require('./port');
 
 const zeros = Buffer.alloc(24, 0);
 
-const createUnboxTransform = (queryParam) => {
-  const keyBase64 = queryParam.slice(0, 44)
-  const keyBytes = Buffer.from(keyBase64, 'base64')
+const createUnboxTransform = queryParam => {
+  const keyBase64 = queryParam.slice(0, 44);
+  const keyBytes = Buffer.from(keyBase64, 'base64');
   return createUnboxStream(keyBytes, zeros);
-}
+};
 
 function ServeBlobs(sbot, config) {
-  const corsEnabled = config && config.serveBlobs && typeof config.serveBlobs.cors === 'boolean'
-    ? config.serveBlobs.cors
-    : false
-  const blobCSP = config && config.serveBlobs && typeof config.serveBlobs.csp === 'string'
-    ? config.serveBlobs.csp
-    : 'default-src none; sandbox'
+  const corsEnabled =
+    config && config.serveBlobs && typeof config.serveBlobs.cors === 'boolean'
+      ? config.serveBlobs.cors
+      : false;
+  const blobCSP =
+    config && config.serveBlobs && typeof config.serveBlobs.csp === 'string'
+      ? config.serveBlobs.csp
+      : 'default-src none; sandbox';
 
-  return function(req, res, next) {
+  return function (req, res, next) {
     var parsed = URL.parse(req.url, true);
 
     var hash = decodeURIComponent(parsed.pathname.slice(1));
-    waitFor(hash, function(_, has) {
+    waitFor(hash, function (_, has) {
       if (!has) return respond(res, 404, 'File not found');
 
       // optional name override
@@ -40,7 +42,9 @@ function ServeBlobs(sbot, config) {
       }
 
       const haveDecryptionKey = parsed.query.unbox != null;
-      const transform = haveDecryptionKey ? createUnboxTransform(parsed.query.unbox) : null;
+      const transform = haveDecryptionKey
+        ? createUnboxTransform(parsed.query.unbox)
+        : null;
 
       // serve
       res.setHeader('Content-Security-Policy', blobCSP);
@@ -52,7 +56,7 @@ function ServeBlobs(sbot, config) {
   };
 
   function waitFor(hash, cb) {
-    sbot.blobs.has(hash, function(err, has) {
+    sbot.blobs.has(hash, function (err, has) {
       if (err) return cb(err);
       if (has) {
         cb(null, has);
@@ -77,7 +81,7 @@ function respondSource(res, source, wrap) {
   } else {
     pull(
       source,
-      ident(function(type) {
+      ident(function (type) {
         if (type) res.writeHead(200, { 'Content-Type': mime.lookup(type) });
       }),
       toPull.sink(res)
@@ -91,19 +95,22 @@ function respond(res, status, message) {
 }
 
 module.exports = function init(sbot, config) {
-  const port = config && config.serveBlobs && typeof config.serveBlobs.port === 'number'
-    ? config.serveBlobs.port
-    : DEFAULT_PORT
+  const port =
+    config && config.serveBlobs && typeof config.serveBlobs.port === 'number'
+      ? config.serveBlobs.port
+      : DEFAULT_PORT;
 
   const server = http.createServer(ServeBlobs(sbot, config)).listen(port);
 
   // Ensure that HTTP server is closed when the SSB server closes.
   sbot.close.hook(function (fn, args) {
-    server.close()
-    fn.apply(this, args)
-  })
+    server.close();
+    fn.apply(this, args);
+  });
 };
 
+module.exports.name = 'ssbServeBlobs';
+module.exports.version = require('./package.json').version;
+module.exports.manifest = {};
 module.exports.init = module.exports;
 module.exports.ServeBlobs = ServeBlobs;
-
